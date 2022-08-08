@@ -1,0 +1,39 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use APNIC::RPKI::CA;
+
+use Cwd;
+use Getopt::Long;
+
+sub usage
+{
+    print <<EOF;
+Usage:
+$0 --name {ca-name}
+
+Print the CA certificate for the CA, in PEM format.
+EOF
+
+    exit(10);
+}
+
+my %options;
+GetOptions(\%options, 'name=s');
+if (not $options{'name'}) {
+    print "Please enter a name.\n";
+    usage();
+}
+
+my $name = $options{'name'};
+my $cwd = cwd();
+my $path = $cwd."/data/cas/$name";
+my $ca = APNIC::RPKI::CA->new(ca_path => $path);
+my $pem = $ca->get_ca_pem();
+print "-----BEGIN CERTIFICATE-----\n".
+      "$pem\n".
+      "-----END CERTIFICATE-----\n";
+
+1;

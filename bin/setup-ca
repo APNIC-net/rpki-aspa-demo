@@ -1,0 +1,59 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use APNIC::RPKI::CA;
+
+use Cwd;
+use Getopt::Long;
+
+sub usage
+{
+    print <<EOF;
+Usage:
+$0 --name {ca-name} --resources {IPv4/IPv6/ASN resources}
+    [--parent-name {ca-name}]
+
+Set up a new CA.  If no parent name is provided, this will be a root
+CA.
+EOF
+
+    exit(10);
+}
+
+my %options;
+GetOptions(\%options, 'name=s', 'resources=s', 'parent-name=s');
+if (not $options{'name'}) {
+    print "Please enter a name.\n";
+    usage();
+}
+if (not $options{'resources'}) {
+    print "Please enter resource details.\n";
+    usage();
+}
+
+my ($name, $resources, $parent_name) =
+    @options{qw(name resources parent-name)};
+
+system("mkdir -p data/cas/$name");
+my $cwd = cwd();
+my $path = $cwd."/data/cas/$name";
+my $ca = APNIC::RPKI::CA->new(ca_path => $path);
+$ca->initialise($name);
+
+my @resource_parts = split /,/, $resources;
+my @ip_resources = grep { /\./ or /:/ } @resource_parts;
+my @as_resources = grep { not (/\./ or /:/) } @resource_parts;
+
+my $request = $ca->get_ca_request($name, \@ip_resources, \@as_resources);
+my $signing_ca =
+    ($parent_name)
+        ? APNIC::RPKI::CA->new(ca_path => $cwd."/data/cas/$parent_name")
+        : $ca;
+my $response =
+    $signing_ca->sign_ca_request($request, \@ip_resources, \@as_resources);
+$ca->install_ca_certificate($response);
+$ca->issue_crl();
+
+1;

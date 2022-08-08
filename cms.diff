@@ -1,0 +1,152 @@
+diff -Naur openssl-1.0.2p-prev/apps/cms.c openssl-1.0.2p/apps/cms.c
+--- openssl-1.0.2p-prev/apps/cms.c	2021-01-25 14:46:12.194081306 +1000
++++ openssl-1.0.2p/apps/cms.c	2021-01-25 14:46:52.173898198 +1000
+@@ -70,6 +70,7 @@
+ # undef PROG
+ # define PROG cms_main
+ static int save_certs(char *signerfile, STACK_OF(X509) *signers);
++static int save_crls(char *crlfile, STACK_OF(X509_CRL) *crls);
+ static int cms_cb(int ok, X509_STORE_CTX *ctx);
+ static void receipt_request_print(BIO *out, CMS_ContentInfo *cms);
+ static CMS_ReceiptRequest *make_receipt_request(STACK_OF(OPENSSL_STRING)
+@@ -119,9 +120,11 @@
+     const char *inmode = "r", *outmode = "w";
+     char *infile = NULL, *outfile = NULL, *rctfile = NULL;
+     char *signerfile = NULL, *recipfile = NULL;
++    char *crlfile = NULL;
+     STACK_OF(OPENSSL_STRING) *sksigners = NULL, *skkeys = NULL;
+     char *certfile = NULL, *keyfile = NULL, *contfile = NULL;
+     char *certsoutfile = NULL;
++    char *crlsoutfile = NULL;
+     const EVP_CIPHER *cipher = NULL, *wrap_cipher = NULL;
+     CMS_ContentInfo *cms = NULL, *rcms = NULL;
+     X509_STORE *store = NULL;
+@@ -411,6 +414,10 @@
+             if (!args[1])
+                 goto argerr;
+             certsoutfile = *++args;
++        } else if (!strcmp(*args, "-crlsout")) {
++            if (!args[1])
++                goto argerr;
++            crlsoutfile = *++args;
+         } else if (!strcmp(*args, "-md")) {
+             if (!args[1])
+                 goto argerr;
+@@ -483,6 +490,10 @@
+             if (!args[1])
+                 goto argerr;
+             certfile = *++args;
++        } else if (!strcmp(*args, "-CRLfile")) {
++            if (!args[1])
++                goto argerr;
++            crlfile = *++args;
+         } else if (!strcmp(*args, "-CAfile")) {
+             if (!args[1])
+                 goto argerr;
+@@ -807,6 +818,17 @@
+             }
+             sk_X509_pop_free(allcerts, X509_free);
+         }
++        if (crlsoutfile) {
++            STACK_OF(X509_CRL) *allcrls;
++            allcrls = CMS_get1_crls(cms);
++            if (!save_crls(crlsoutfile, allcrls)) {
++                BIO_printf(bio_err,
++                           "Error writing certs to %s\n", crlsoutfile);
++                ret = 5;
++                goto end;
++            }
++            sk_X509_CRL_pop_free(allcrls, X509_CRL_free);
++        }
+     }
+ 
+     if (rctfile) {
+@@ -968,6 +990,22 @@
+             }
+         } else
+             flags |= CMS_REUSE_DIGEST;
++
++        if ((operation == SMIME_SIGN) || (operation == SMIME_RESIGN)) {
++            if (crlfile) {
++                STACK_OF(X509_CRL) *crls = load_crls(
++                    bio_err, crlfile, FORMAT_PEM, NULL,
++                    e, "CRL file");
++                if (!crls) {
++                    exit(1);
++                }
++                for (int i = 0; i < sk_X509_CRL_num(crls); i++) {
++                    X509_CRL *item = sk_X509_CRL_value(crls, i);
++                    CMS_add1_crl(cms, item);
++                }
++            }
++        }
++
+         for (i = 0; i < sk_OPENSSL_STRING_num(sksigners); i++) {
+             CMS_SignerInfo *si;
+             cms_key_param *kparam;
+@@ -1071,6 +1109,19 @@
+                                        indata, out, flags))
+             goto end;
+     } else if (operation == SMIME_VERIFY) {
++        if (crlfile) {
++            STACK_OF(X509_CRL) *crls = load_crls(
++                bio_err, crlfile, FORMAT_PEM, NULL,
++                e, "CRL file");
++            if (!crls) {
++                exit(1);
++            }
++            for (int i = 0; i < sk_X509_CRL_num(crls); i++) {
++                X509_CRL *item = sk_X509_CRL_value(crls, i);
++                CMS_add1_crl(cms, item);
++            }
++        }
++
+         if (CMS_verify(cms, other, store, indata, out, flags) > 0)
+             BIO_printf(bio_err, "Verification successful\n");
+         else {
+@@ -1194,6 +1245,21 @@
+     BIO_free(tmp);
+     return 1;
+ }
++
++static int save_crls(char *crlfile, STACK_OF(X509_CRL) *crls)
++{
++    int i;
++    BIO *tmp;
++    if (!crlfile)
++        return 1;
++    tmp = BIO_new_file(crlfile, "w");
++    if (!tmp)
++        return 0;
++    for (i = 0; i < sk_X509_CRL_num(crls); i++)
++        PEM_write_bio_X509_CRL(tmp, sk_X509_CRL_value(crls, i));
++    BIO_free(tmp);
++    return 1;
++}
+ 
+ /* Minimal callback just to output policy info (if any) */
+ 
+diff -Naur openssl-1.0.2p-prev/crypto/cms/cms_sd.c openssl-1.0.2p/crypto/cms/cms_sd.c
+--- openssl-1.0.2p-prev/crypto/cms/cms_sd.c	2021-01-25 14:46:12.230081141 +1000
++++ openssl-1.0.2p/crypto/cms/cms_sd.c	2021-01-25 15:27:50.454556925 +1000
+@@ -688,6 +688,20 @@
+             goto err;
+     }
+ 
++    /* This is the content type for RTAs.  Krill requires that this
++     * content type be set on each signed structure, whereas OpenSSL
++     * only sets it on the first one (additional signed structures
++     * have no explicit content type), which is why this workaround is
++     * here. */
++    if (CMS_signed_get_attr_by_NID(si, NID_pkcs9_contentType, -1) < 0) {
++        const char *ct = "1.2.840.113549.1.9.16.1.36";
++        ASN1_OBJECT *econtent_type = OBJ_txt2obj(ct, 0);
++        if (CMS_signed_add1_attr_by_NID(si, NID_pkcs9_contentType,
++                                        V_ASN1_OBJECT, econtent_type, -1) <= 0) {
++            goto err;
++        }
++    }
++
+     if (si->pctx)
+         pctx = si->pctx;
+     else {
