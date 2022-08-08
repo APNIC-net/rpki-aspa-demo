@@ -3,9 +3,11 @@
 use warnings;
 use strict;
 
+use File::Slurp qw(write_file);
 use File::Temp qw(tempdir);
 
 use APNIC::RPKI::CA;
+use APNIC::RPKI::ASPA;
 
 {
     my $cas = tempdir(UNLINK => 1);
@@ -14,6 +16,16 @@ use APNIC::RPKI::CA;
     my $ca_path = "$cas/ta";
     my $ca = APNIC::RPKI::CA->new(ca_path => $ca_path);
     $ca->initialise('ta');
+    $ca->publish();
+
+    my $aspa_obj = APNIC::RPKI::ASPA->new();
+    $aspa_obj->version(0);
+    $aspa_obj->customer_asn(1024);
+    $aspa_obj->providers([{
+        provider_asn => 1025
+    }]);
+    my $aspa_data = $ca->sign_cms_aspa($aspa_obj->encode());
+    write_file("stg-repo/an-object.asa", $aspa_data);
     $ca->publish();
 
     chdir $cas or die $!;
