@@ -50,7 +50,6 @@ my $cms_parser = APNIC::RPKI::CMS->new();
 my $aspa_parser = APNIC::RPKI::ASPA->new();
 my $cms_data = $cms_parser->decode($cms);
 $aspa_parser->decode($aspa_raw);
-write_file('last-raw', $aspa_raw);
 
 print "Version:     ".$aspa_parser->version(),"\n";
 print "Customer AS: ".$aspa_parser->customer_asn(),"\n";
