@@ -48,7 +48,7 @@ my ($ca_names, $ca_cert_paths, $in) =
 my $cwd = cwd();
 
 my @cas =
-    map { my $path = $cwd."/$_";
+    map { my $path = $cwd."/data/cas/$_";
           APNIC::RPKI::CA->new(ca_path => $path) }
         @{$ca_names || []}; 
 

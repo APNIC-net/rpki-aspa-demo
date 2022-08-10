@@ -281,6 +281,14 @@ EOF
     return 1;
 }
 
+sub get_config
+{
+    my ($self) = @_;
+
+    $self->_chdir_ca();
+    return YAML::LoadFile('config.yml');
+}
+
 sub get_cert_rsync_url
 {
     my ($self) = @_;

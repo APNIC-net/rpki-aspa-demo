@@ -1,0 +1,96 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use APNIC::RPKI::CA;
+use APNIC::RPKI::ASPA;
+
+use Cwd;
+use File::Slurp qw(write_file);
+use Getopt::Long;
+use List::MoreUtils qw(uniq);
+use Net::CIDR::Set;
+use Set::IntSpan;
+
+sub usage
+{
+    print <<EOF;
+Usage:
+$0 --ca-name {ca-name} --customer-asn {customer-asn}
+    --provider-asn {provider-asn}[:IPv4][:IPv6]
+    [--provider-asn ...]
+    --out {path}
+
+Sign an ASPA object. 
+EOF
+
+    exit(10);
+}
+
+my %options;
+GetOptions(\%options, 'ca-name=s', 'customer-asn=s', 
+           'provider-asn=s@', 'out=s');
+if (not $options{'ca-name'}) {
+    print "Please enter a CA name.\n";
+    usage();
+}
+if (not $options{'customer-asn'}) {
+    print "Please enter a customer ASN.\n";
+    usage();
+}
+if (not $options{'out'}) {
+    print "Please enter an output path.\n";
+    usage();
+}
+
+my ($ca_name, $customer_asn, $provider_asn_ref, $out) =
+    @options{qw(ca-name customer-asn provider-asn out)};
+
+my $cwd = cwd();
+if ($out !~ /^\//) {
+    $out = $cwd.'/'.$out;
+}
+
+my $path = $cwd."/data/cas/$ca_name";
+my $ca = APNIC::RPKI::CA->new(ca_path => $path);
+
+my $aspa = APNIC::RPKI::ASPA->new();
+$aspa->version(0);
+$aspa->customer_asn($customer_asn);
+my @providers;
+for my $provider_asn (@{$provider_asn_ref}) {
+    if ($provider_asn =~ /^\d+$/) {
+        push @providers, { provider_asn => $provider_asn };
+    } elsif ($provider_asn =~ /^(\d+):IPv4$/) {
+        push @providers, { provider_asn => $provider_asn,
+                           afi_limit => 'ipv4' };
+    } elsif ($provider_asn =~ /^(\d+):IPv6$/) {
+        push @providers, { provider_asn => $provider_asn,
+                           afi_limit => 'ipv6' };
+    } else {
+        print "Invalid provider ASN specification: $provider_asn";
+        usage();
+    }
+}
+
+# Do not check for duplicates or reorder the providers: these might be
+# done purposefully for testing.
+
+$aspa->provider_asns(\@providers);
+
+my $ca_config = $ca->get_config();
+my $host_and_port = $ca_config->{'host_and_port'};
+my $name = $ca_config->{'name'};
+my $aspa_data = $ca->issue_aspa($aspa_obj,
+    "rsync://$host_and_port/$name/an-object.asa");
+$ca->publish_file("an-object.asa", $aspa_data);
+$ca->publish();
+
+my $repo = $ca_config->{'repo'};
+my $res = system("cp $repo/an-object.asa $out");
+if ($res != 0) {
+    die "Unable to copy ASPA object to output location";
+}
+
+1;
