@@ -15,14 +15,30 @@ See [https://www.ietf.org/archive/id/draft-ietf-sidrops-aspa-profile-09.txt](htt
 #### Basic ASPA
 
     # /sbin/service rsync start
-    # setup-ca --name ca --resources 1234
-    # issue-aspa --ca-name ca --customer-asn 1234 --provider-asn 1235 --out my.asa
-    # verify-aspa --in my.asa
+    # setup-ca --name ta --resources 1234
+    # sign-aspa --ca-name ta --customer-asn 1234 --provider-asn 1235 --out my.asa
+    # verify-aspa --ca-name ta --in my.asa
     Verification succeeded.
+
+#### Multiple CAs
+
+    # /sbin/service rsync start
+    # setup-ca --name ta --resources 1-65000
+    # setup-ca --name ca --parent-name ta --resources 1234
+    # sign-aspa --ca-name ca --customer-asn 1234 --provider-asn 1235 --out my.asa
+    # verify-aspa --ca-name ta --in my.asa
+    Verification succeeded.
+
+#### Incorrect customer ASN
+
+    # /sbin/service rsync start
+    # setup-ca --name ta --resources 1234
+    # sign-aspa --ca-name ta --customer-asn 1236 --provider-asn 1235 --out my.asa
+    # verify-aspa --ca-name ta --in my.asa
+    Verification failed: ... RFC 3779 resource not subset of parent's resources
 
 ### Todo
 
-   - More CMS validity checks.
    - Documentation/tidying of code.
 
 ### License

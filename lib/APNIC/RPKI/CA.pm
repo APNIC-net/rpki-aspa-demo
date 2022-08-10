@@ -192,7 +192,7 @@ sub _generate_config
 sub initialise
 {
     my ($self, $common_name, $key_only, $stg_repo_dir, $repo_dir,
-        $host, $port) = @_;
+        $host, $port, $ip_resources, $as_resources) = @_;
 
     if (not defined $port) {
         $port = 873;
@@ -225,7 +225,7 @@ sub initialise
     my ($name) = ($path =~ /.*\/(.*)\/?/);
 
     my $openssl = $self->{'openssl'}->get_openssl_path();
-    _system("$openssl genrsa -out ca/ca/private/ca.key 2048");
+    _system("$openssl genrsa -out ca/ca/private/ca.key 2048 >/dev/null 2>&1");
     my $key_data = read_file("ca/ca/private/ca.key");
     my $gski = $self->{'openssl'}->get_key_ski($key_data);
 
@@ -239,7 +239,7 @@ sub initialise
     my $mft_sia = ID_SIA_MANIFEST().";URI:rsync://$host_and_port/repo/$name/$gski.mft";
 
     if (not $key_only) {
-        my $extra = $self->_generate_sbgp_config(['0.0.0.0/0'], ['1-65536']);
+        my $extra = $self->_generate_sbgp_config($ip_resources, $as_resources);
         $extra = "subjectInfoAccess=$sia,$mft_sia\n$extra";
         $self->_generate_config(root_ca_ext_extra => $extra);
 
@@ -418,6 +418,7 @@ sub sign_ca_request
     my $aia = $own_config->{'aia'};
     my $gski = $own_config->{'gski'};
     my $host_and_port = $own_config->{'host_and_port'};
+    my $stg_repo = $own_config->{'stg_repo'};
 
     my $path = $self->{'ca_path'};
     my ($name) = ($path =~ /.*\/(.*)\/?/);
@@ -445,6 +446,10 @@ sub sign_ca_request
     my $ski = $self->{'openssl'}->get_ski($data);
     my $bin_ski = pack('H*', $ski);
     my $cert_gski = mod_gutmannize($bin_ski);
+
+    _system("$openssl x509 -in $fn_output -inform PEM -outform DER ".
+            "-out $stg_repo/$cert_gski.cer");
+    $self->publish();
 
     return ($data, "rsync://$host_and_port/repo/$name/$cert_gski.cer");
 }

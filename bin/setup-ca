@@ -36,30 +36,33 @@ if (not $options{'resources'}) {
 my ($name, $resources, $parent_name) =
     @options{qw(name resources parent-name)};
 
+my @resource_parts = split /,/, $resources;
+my @ip_resources = grep { /\./ or /:/ } @resource_parts;
+my @as_resources = grep { not (/\./ or /:/) } @resource_parts;
+
 system("mkdir -p data/cas/$name");
+system("mkdir -p data/stg-repo");
+system("mkdir -p data/repo");
 my $cwd = cwd();
 my $path = $cwd."/data/cas/$name";
 my $ca = APNIC::RPKI::CA->new(ca_path => $path);
 my $stg_repo = $cwd."/data/stg-repo";
 my $repo = $cwd."/data/repo";
 $ca->initialise($name, (defined $parent_name),
-                $stg_repo, $repo, "localhost");
+                $stg_repo, $repo, "localhost", 873,
+                \@ip_resources, \@as_resources);
 
 if (defined $parent_name) {
-    my @resource_parts = split /,/, $resources;
-    my @ip_resources = grep { /\./ or /:/ } @resource_parts;
-    my @as_resources = grep { not (/\./ or /:/) } @resource_parts;
-
     my $request = $ca->get_ca_request($name, \@ip_resources, \@as_resources);
     my $signing_ca =
         ($parent_name)
             ? APNIC::RPKI::CA->new(ca_path => $cwd."/data/cas/$parent_name")
             : $ca;
-    my $response =
+    my ($response, $url) =
         $signing_ca->sign_ca_request($request, \@ip_resources, \@as_resources);
-    $ca->install_ca_certificate($response);
-    $ca->issue_crl();
-    $ca->publish();
+    $ca->install_ca_certificate($response, $url);
 }
+
+$ca->publish();
 
 1;

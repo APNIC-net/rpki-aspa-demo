@@ -220,12 +220,14 @@ sub validate_aspa
     my $ft_error = File::Temp->new();
     my $fn_error = $ft_error->filename();
 
-    eval { system_ad("$openssl cms -verify -inform DER ".
+    eval { 
+        system_ad("$openssl cms -verify -inform DER ".
               "-in $fn ".
               "-CAfile $fn_certfile ".
               (@extra_crls ? " -crl_check_all -CRLfile $fn_crlfile " : '').
-              "-out $fn_output 2>&1",
-              0); };
+              "-out $fn_output >/dev/null 2>&1",
+              1); 
+    };
     if (my $error = $@) {
         eval { system_ad("$openssl cms -verify -inform DER ".
               "-in $fn ".

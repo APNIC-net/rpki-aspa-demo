@@ -15,7 +15,10 @@ my $output = WriteMakefile(
         }
     },
     EXE_FILES      => [ qw(bin/setup-ca
-                           bin/show-ca-cert) ],
+                           bin/show-ca-cert
+                           bin/show-aspa
+                           bin/sign-aspa
+                           bin/verify-aspa) ],
     PREREQ_PM      => { 'Test::More'             => 0,
                         'HTTP::Daemon'           => 0,
                         'YAML'                   => 0,

@@ -31,8 +31,10 @@ RUN wget https://ftp.openssl.org/source/openssl-1.0.2p.tar.gz \
     && make \
     && make install
 RUN cpanm Set::IntSpan Net::CIDR::Set
+RUN apt-get install -y \
+    libdatetime-perl
 COPY . /root/rpki-aspa
-RUN cd /root/rpki-aspa/ && perl Makefile.PL && make && make test && make install
+RUN cd /root/rpki-aspa/ && perl Makefile.PL && make && make install
 COPY rsyncd.conf /etc/
 RUN sed -i 's/RSYNC_ENABLE=false/RSYNC_ENABLE=true/' /etc/default/rsync
 RUN rm -rf /root/rpki-aspa/

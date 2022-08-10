@@ -77,12 +77,12 @@ for my $provider_asn (@{$provider_asn_ref}) {
 # Do not check for duplicates or reorder the providers: these might be
 # done purposefully for testing.
 
-$aspa->provider_asns(\@providers);
+$aspa->providers(\@providers);
 
 my $ca_config = $ca->get_config();
 my $host_and_port = $ca_config->{'host_and_port'};
 my $name = $ca_config->{'name'};
-my $aspa_data = $ca->issue_aspa($aspa_obj,
+my $aspa_data = $ca->issue_aspa($aspa,
     "rsync://$host_and_port/$name/an-object.asa");
 $ca->publish_file("an-object.asa", $aspa_data);
 $ca->publish();
