@@ -254,8 +254,6 @@ $aia
 
 @key_data
 EOF
-
-        system("tree $repo_dir");
     }
 
     my $own_config = {
@@ -306,42 +304,60 @@ sub _generate_sbgp_config
     my $ipv6_index = 0;
 
     my @ip_lines;
-    for my $ip_resource (@{$ip_resources}) {
-        my $type = Net::IP->new($ip_resource)->version();
-        if ($type == 4) {
-            push @ip_lines, "IPv4.$ipv4_index = $ip_resource";
-            $ipv4_index++;
-        } else {
-            push @ip_lines, "IPv6.$ipv6_index = $ip_resource";
-            $ipv6_index++;
+    if ((ref $ip_resources) eq 'ARRAY') {
+        for my $ip_resource (@{$ip_resources}) {
+            my $type = Net::IP->new($ip_resource)->version();
+            if ($type == 4) {
+                push @ip_lines, "IPv4.$ipv4_index = $ip_resource";
+                $ipv4_index++;
+            } else {
+                push @ip_lines, "IPv6.$ipv6_index = $ip_resource";
+                $ipv6_index++;
+            }
         }
+    } elsif (not defined $ip_resources) {
+        @ip_lines = (
+            'IPv4 = inherit',
+            'IPv6 = inherit'
+        );
     }
 
     my $ip_content =
         (@ip_lines)
             ? "[ ip-section ]\n".(join "\n", @ip_lines)."\n\n"
-            : "[ ip-section ]\nIPv4 = inherit\nIPv6=inherit\n";
+            : "";
 
     my $as_index = 0;
     my @as_lines;
-    for my $as_resource (@{$as_resources}) {
-        push @as_lines, "AS.$as_index = $as_resource";
-        $as_index++;
+    if ((ref $as_resources) eq 'ARRAY') {
+        for my $as_resource (@{$as_resources}) {
+            push @as_lines, "AS.$as_index = $as_resource";
+            $as_index++;
+        }
+    } elsif (not defined $as_resources) {
+        @as_lines = (
+            'AS = inherit'
+        );
     }
 
     my $as_content =
         (@as_lines)
             ? "[ as-section ]\n".(join "\n", @as_lines)."\n\n"
-            : "[ as-section ]\nAS = inherit\n";
+            : "";
 
     my @preliminary = (
-        'sbgp-ipAddrBlock = critical, @ip-section',
-        'sbgp-autonomousSysNum = critical, @as-section'
+        ((@ip_lines)
+            ? 'sbgp-ipAddrBlock = critical, @ip-section'
+            : ''),
+        ((@as_lines)
+            ? 'sbgp-autonomousSysNum = critical, @as-section'
+            : '')
     );
 
-    return
+    my $result =
         join "\n",
             ((@preliminary), "\n", $ip_content, $as_content);
+    return $result;
 }
 
 sub mod_gutmannize
@@ -477,9 +493,6 @@ sub issue_new_ee_certificate
 
     $self->_chdir_ca();
 
-    $ip_resources ||= [];
-    $as_resources ||= [];
-
     my $own_config = YAML::LoadFile('config.yml');
     my $aia = $own_config->{'aia'};
     if (not $aia) {
@@ -569,11 +582,28 @@ sub get_ee
     return $data;
 }
 
+sub issue_aspa
+{
+    my ($self, $aspa, $url) = @_;
+
+    my $sia = "1.3.6.1.5.5.7.48.11;URI:$url";
+    my $customer_asn = $aspa->customer_asn();
+    $self->issue_new_ee_certificate([], [$customer_asn], $sia);
+
+    system("cp ".EE_CERT_FILENAME()." /tmp/ee");
+
+    return $self->sign_cms($aspa->encode(), ID_CT_ASPA());
+}
+
 sub issue_manifest
 {
     my ($self) = @_;
 
     my $own_config = YAML::LoadFile('config.yml');
+    my $sia = $own_config->{'mft_sia'};
+    $sia =~ s/\.10;/.11;/;
+    $self->issue_new_ee_certificate(undef, undef, $sia);
+
     my $aia = $own_config->{'aia'};
     if (not $aia) {
         die "No AIA set for this CA";
@@ -605,9 +635,8 @@ sub issue_manifest
     $mft->this_update($this_update);
     $mft->next_update($next_update);
     $mft->files(\@mft_files);
-    my $data = $mft->encode();
 
-    my $mft_proper = $self->sign_cms_mft($data);
+    my $mft_proper = $self->sign_cms($mft->encode(), ID_CT_MFT());
     write_file("$stg_repo/$gski.mft", $mft_proper);
 
     return 1;
@@ -628,14 +657,10 @@ sub publish
 {
     my ($self) = @_;
 
-    my $own_config = YAML::LoadFile('config.yml');
-
     $self->issue_crl();
-    my $sia = $own_config->{'mft_sia'};
-    $sia =~ s/\.10;/.11;/;
-    $self->issue_new_ee_certificate(undef, undef, $sia);
     $self->issue_manifest();
 
+    my $own_config = YAML::LoadFile('config.yml');
     my $aia = $own_config->{'aia'};
     if (not $aia) {
         die "No AIA set for this CA";
@@ -691,20 +716,6 @@ sub sign_cms
                       "-in $fn_input -out $fn_output");
 
     return read_file($fn_output);
-}
-
-sub sign_cms_aspa
-{
-    my ($self, $input) = @_;
-
-    return $self->sign_cms($input, ID_CT_ASPA());
-}
-
-sub sign_cms_mft
-{
-    my ($self, $input) = @_;
-
-    return $self->sign_cms($input, ID_CT_MFT());
 }
 
 sub get_ca_pem

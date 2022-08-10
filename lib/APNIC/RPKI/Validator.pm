@@ -114,6 +114,18 @@ sub validate_aspa
     if (not $ee_cert) {
         die "No EE certificate found in ASPA";
     }
+
+    my @sias = @{$self->{'openssl'}->get_sias($ee_cert)};
+    if (@sias != 1) {
+        die "EE certificate should have single SIA";
+    }
+    if ($sias[0]->[0] ne '1.3.6.1.5.5.7.48.11') {
+        die "EE certificate SIA should be of type signedObject";
+    }
+    if ($sias[0]->[1] !~ /\.asa$/) {
+        die "EE certificate SIA should point to an ASPA object";
+    }
+
     my $resources = $self->get_resources_from_cert($ee_cert);
     my ($ipv4_set, $ipv6_set, $as_set) = @{$resources};
 

@@ -90,7 +90,8 @@ EOF
         $aspa_obj->providers([{
             provider_asn => 1025
         }]);
-        $aspa_data = $ca->sign_cms_aspa($aspa_obj->encode());
+        $aspa_data = $ca->issue_aspa($aspa_obj,
+            "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);
         $ca->publish();
     };
@@ -111,7 +112,7 @@ EOF
         );
     };
     $error = $@;
-    like($error, qr/ASPA ASN is not present in certificate/,
+    like($error, qr/not subset of parent's resources/,
         "ASPA with uncertified ASN is invalid");
 
     eval {
@@ -121,7 +122,8 @@ EOF
         $aspa_obj->providers([{
             provider_asn => 1025
         }]);
-        $aspa_data = $ca->sign_cms_aspa($aspa_obj->encode());
+        $aspa_data = $ca->issue_aspa($aspa_obj,
+            "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);
         $ca->publish();
     };
@@ -152,7 +154,8 @@ EOF
                 provider_asn => 1024
             },
         ]);
-        $aspa_data = $ca->sign_cms_aspa($aspa_obj->encode());
+        $aspa_data = $ca->issue_aspa($aspa_obj,
+            "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);
         $ca->publish();
     };
@@ -184,7 +187,8 @@ EOF
                 provider_asn => 1025
             },
         ]);
-        $aspa_data = $ca->sign_cms_aspa($aspa_obj->encode());
+        $aspa_data = $ca->issue_aspa($aspa_obj,
+            "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);
         $ca->publish();
     };
@@ -217,7 +221,8 @@ EOF
                 provider_asn => 1025
             },
         ]);
-        $aspa_data = $ca->sign_cms_aspa($aspa_obj->encode());
+        $aspa_data = $ca->issue_aspa($aspa_obj,
+            "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);
         $ca->publish();
     };
@@ -244,7 +249,8 @@ EOF
         $aspa_obj->providers([{
             provider_asn => 1025
         }]);
-        $aspa_data = $ca->sign_cms_aspa($aspa_obj->encode());
+        $aspa_data = $ca->issue_aspa($aspa_obj,
+            "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);
         $ca->publish();
     };

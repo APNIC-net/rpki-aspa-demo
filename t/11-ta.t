@@ -84,7 +84,9 @@ EOF
         $aspa_obj->providers([{
             provider_asn => 1025
         }]);
-        my $aspa_data = $ca->sign_cms_aspa($aspa_obj->encode());
+        my $aspa_data =
+            $ca->issue_aspa($aspa_obj,
+                "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);
         $ca->publish();
     };

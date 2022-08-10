@@ -96,6 +96,37 @@ sub get_ski
     return $ski;
 }
 
+sub get_sias
+{
+    my ($self, $cert) = @_;
+
+    my $ft_cert = File::Temp->new();
+    print $ft_cert $cert;
+    $ft_cert->flush();
+    my $fn_cert = $ft_cert->filename();
+
+    my $openssl = $self->get_openssl_path();
+    my @lines = `$openssl x509 -in $fn_cert -text -noout`;
+    my $flag = 0;
+    my @sias;
+    for my $line (@lines) {
+        if (not $flag) {
+            if ($line =~ /^\s*Subject Information Access:/) {
+                $flag = 1;
+                next;
+            }
+        } elsif ($line =~ /^                [^\s]/) {
+            $line =~ s/^\s*//;
+            my ($oid, $value) = ($line =~ /^(.*?) - (.*)$/);
+            push @sias, [$oid, $value];
+        } else {
+            last;
+        }
+    }
+
+    return \@sias;
+}
+
 sub get_crldps
 {
     my ($self, $cert) = @_;
