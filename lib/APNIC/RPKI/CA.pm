@@ -309,7 +309,7 @@ sub _generate_sbgp_config
     my $ip_content =
         (@ip_lines)
             ? "[ ip-section ]\n".(join "\n", @ip_lines)."\n\n"
-            : "";
+            : "[ ip-section ]\nIPv4 = inherit\nIPv6=inherit\n";
 
     my $as_index = 0;
     my @as_lines;
@@ -321,15 +321,11 @@ sub _generate_sbgp_config
     my $as_content =
         (@as_lines)
             ? "[ as-section ]\n".(join "\n", @as_lines)."\n\n"
-            : "";
+            : "[ as-section ]\nAS = inherit\n";
 
     my @preliminary = (
-        ((@ip_lines)
-            ? 'sbgp-ipAddrBlock = critical, @ip-section'
-            : ''),
-        ((@as_lines)
-            ? 'sbgp-autonomousSysNum = critical, @as-section'
-            : '')
+        'sbgp-ipAddrBlock = critical, @ip-section',
+        'sbgp-autonomousSysNum = critical, @as-section'
     );
 
     return
@@ -496,8 +492,6 @@ sub issue_new_ee_certificate
              $extra;
 
     $self->_generate_config(signing_ca_ext_extra => $extra);
-
-    $self->revoke_current_ee_certificate();
 
     my $openssl = $self->{'openssl'}->get_openssl_path();
     _system("$openssl genrsa ".

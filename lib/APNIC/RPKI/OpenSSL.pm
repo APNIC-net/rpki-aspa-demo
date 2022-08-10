@@ -136,7 +136,7 @@ sub get_aias
     return \@aias;
 }
 
-sub get_resources
+sub get_resources_strings
 {
     my ($self, $cert) = @_;
 
@@ -146,11 +146,11 @@ sub get_resources
     my $fn_cert = $ft_cert->filename();
 
     my $openssl = $self->{'path'};
-    my @data = `$openssl x509 -in $fn_cert -text -noout`;
-    
-    my $ipv4_set = Net::CIDR::Set->new({ type => 'ipv4' });
-    my $ipv6_set = Net::CIDR::Set->new({ type => 'ipv6' });
-    my $as_set = Set::IntSpan->new();
+    my @data = `$openssl x509 -in $fn_cert -text -noout 2>/dev/null`;
+
+    my @ipv4_strings;
+    my @ipv6_strings;
+    my @as_strings;
 
     for (my $i = 0; $i < @data; $i++) {
         my $line = $data[$i];
@@ -160,7 +160,9 @@ sub get_resources
             while ($line ne "") {
                 $line = $data[$i++];
                 $line =~ s/\s*//g;
-                $as_set = $as_set->union($line);
+                if ($line) {
+                    push @as_strings, $line;
+                }
             }
         }
     }
@@ -171,16 +173,58 @@ sub get_resources
             while ($line ne "") {
                 $line = $data[$i++];
                 $line =~ s/\s*//g;
-                if ($line =~ /IPv/) {
+                if ($line =~ /IPv4:\s*inherit/) {
+                    push @ipv4_strings, "inherit";
+                } elsif ($line =~ /IPv6:\s*inherit/) {
+                    push @ipv6_strings, "inherit";
+                } elsif ($line =~ /IPv/) {
                     next;
-                }
-                if ($line =~ /\./) {
-                    $ipv4_set->add($line);
+                } elsif ($line =~ /\./) {
+                    push @ipv4_strings, $line;
                 } elsif ($line =~ /:/) {
-                    $ipv6_set->add($line);
+                    push @ipv6_strings, $line;
                 }
             }
         }
+    }
+
+    return [ \@ipv4_strings, \@ipv6_strings, \@as_strings ];
+}
+
+sub is_inherit
+{
+    my ($self, $cert) = @_;
+
+    my ($ipv4_strs, $ipv6_strs, $asn_strs) =
+        @{$self->get_resources_strings($cert)};
+
+    return ((@{$ipv4_strs} == 1)
+            and ($ipv4_strs->[0] eq 'inherit')
+            and (@{$ipv6_strs} == 1)
+            and ($ipv6_strs->[0] eq 'inherit')
+            and (@{$asn_strs} == 1)
+            and ($asn_strs->[0] eq 'inherit'));
+}
+
+sub get_resources
+{
+    my ($self, $cert) = @_;
+
+    my ($ipv4_strs, $ipv6_strs, $asn_strs) =
+        @{$self->get_resources_strings($cert)};
+
+    my $ipv4_set = Net::CIDR::Set->new({ type => 'ipv4' });
+    my $ipv6_set = Net::CIDR::Set->new({ type => 'ipv6' });
+    my $as_set = Set::IntSpan->new();
+
+    for my $ipv4_str (@{$ipv4_strs}) {
+        $ipv4_set->add($ipv4_str);
+    }
+    for my $ipv6_str (@{$ipv6_strs}) {
+        $ipv6_set->add($ipv6_str);
+    }
+    for my $asn_str (@{$asn_strs}) {
+        $as_set = $as_set->union($asn_str);
     }
 
     return [ $ipv4_set, $ipv6_set, $as_set ];

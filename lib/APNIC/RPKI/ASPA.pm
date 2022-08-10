@@ -74,7 +74,7 @@ sub decode
         (exists $data->{'version'} and defined $data->{'version'})
             ? $data->{'version'}
             : 0;
-    $self->version(0);
+    $self->version($version);
     $self->customer_asn($data->{'customerASID'});
 
     my @providers;
@@ -92,7 +92,7 @@ sub decode
                 : ()
         };
     }
-    $self->providers(@providers);
+    $self->providers(\@providers);
 
     return 1;
 }

@@ -73,7 +73,7 @@ EOF
     };
     my $error = $@;
     if ($error) {
-        debug($error);
+        diag $error;
     }
     ok((not $error), "Initialised TA successfully");
 
@@ -90,7 +90,7 @@ EOF
     };
     $error = $@;
     if ($error) {
-        debug($error);
+        diag $error;
     }
     ok((not $error), "Published ASPA under TA");
 
@@ -118,6 +118,10 @@ $ta_url
 EOF
     write_file("$rpki_client_dir/tals/test.tal", $tal_data);
 
+    # Download the repository manually and pass the -n flag to
+    # rpki-client, because the cache directory will have the form
+    # localhost:$port, and rsync will interpret that destination as a
+    # remote host and refuse to run.
     chdir $rpki_client_dir or die $!;
     chdir "cache";
     mkdir $host_and_port or die $!;
