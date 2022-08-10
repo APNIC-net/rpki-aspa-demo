@@ -139,7 +139,7 @@ sub _chdir_ca
 {
     my ($self) = @_;
 
-    chdir $self->{'ca_path'} or die $!;
+    chdir $self->{'ca_path'} or die "$! (".$self->{'ca_path'}.")";
 
     return 1;
 }

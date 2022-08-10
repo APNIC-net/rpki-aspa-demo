@@ -1,0 +1,89 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use APNIC::RPKI::CA;
+use APNIC::RPKI::ASPA;
+use APNIC::RPKI::Validator;
+
+use Cwd;
+use File::Slurp qw(read_file);
+use Getopt::Long;
+use List::MoreUtils qw(uniq);
+use Net::CIDR::Set;
+use Set::IntSpan;
+
+sub usage
+{
+    print <<EOF;
+Usage:
+$0 --ca-name {ca-name} --ca-cert-path {ca-cert-path}
+    --in {path}
+
+Verify an ASPA object.  The names of the trusted root CAs are provided
+as arguments to the --ca-name option.  Trusted root CA certificate
+(PEM format) paths may also be provided as arguments to the
+--ca-cert-path option.
+EOF
+
+    exit(10);
+}
+
+my %options;
+GetOptions(\%options, 'ca-name=s@', 'ca-cert-path=s@', 'in=s');
+if (not @{$options{'ca-name'} || []}
+        and not @{$options{'ca-cert-path'} || []}) {
+    print "Please enter a CA name or a CA certificate path.\n";
+    usage();
+}
+if (not $options{'in'}) {
+    print "Please enter an input path.\n";
+    usage();
+}
+
+my ($ca_names, $ca_cert_paths, $in) =
+    @options{qw(ca-name ca-cert-path in)};
+
+my $cwd = cwd();
+
+my @cas =
+    map { my $path = $cwd."/$_";
+          APNIC::RPKI::CA->new(ca_path => $path) }
+        @{$ca_names || []}; 
+
+my $certs = [];
+for my $ca (@cas) {
+    if ($ca->get_issuer() ne $ca->get_subject()) {
+        print "CA ".$ca->get_subject()." is not a root CA.\n";
+        usage();
+    }
+    push @{$certs}, "-----BEGIN CERTIFICATE-----\n".
+                    $ca->get_ca_pem()."\n".
+                    "-----END CERTIFICATE-----";
+}
+for my $ca_cert_path (@{$ca_cert_paths || []}) {
+    my $cert = read_file($ca_cert_path);
+    chomp $cert;
+    push @{$certs}, $cert;
+}
+$certs = [ uniq @{$certs} ];
+
+if ($in !~ /^\//) {
+    $in = $cwd.'/'.$in;
+}
+my $aspa_data = read_file($in);
+
+my $validator = APNIC::RPKI::Validator->new();
+my $res = eval {
+    $validator->validate_aspa($aspa_data, $certs)
+};
+if (my $error = $@) {
+    print "Verification failed: $error";
+    exit(1);
+} else {
+    print "Verification succeeded.\n";
+    exit(0);
+}
+
+1;
