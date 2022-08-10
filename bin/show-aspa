@@ -1,0 +1,78 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use APNIC::RPKI::CA;
+use APNIC::RPKI::CMS;
+use APNIC::RPKI::OpenSSL;
+use APNIC::RPKI::ASPA;
+use APNIC::RPKI::Validator;
+
+use Cwd;
+use File::Slurp qw(read_file write_file);
+use File::Temp;
+use Getopt::Long;
+
+sub usage
+{
+    print <<EOF;
+Usage:
+$0 --in {path}
+
+Show an ASPA's details.
+EOF
+
+    exit(10);
+}
+
+my %options;
+GetOptions(\%options, 'in=s');
+if (not $options{'in'}) {
+    print "Please enter an input path.\n";
+    usage();
+}
+
+my ($in) = @options{qw(in)};
+
+my $cms = read_file($in);
+my $openssl = APNIC::RPKI::OpenSSL->new()->{'path'};
+my $ft = File::Temp->new();
+my $fn = $ft->filename();
+my $res = system("$openssl cms -verify -noverify -inform DER -in $in -out $fn ".
+                 ">/dev/null 2>&1");
+if ($res != 0) {
+    die "Unable to parse CMS.";
+}
+my $aspa_raw = read_file($fn);
+
+my $cms_parser = APNIC::RPKI::CMS->new();
+my $aspa_parser = APNIC::RPKI::ASPA->new();
+my $cms_data = $cms_parser->decode($cms);
+$aspa_parser->decode($aspa_raw);
+write_file('last-raw', $aspa_raw);
+
+print "Version:     ".$aspa_parser->version(),"\n";
+print "Customer AS: ".$aspa_parser->customer_asn(),"\n";
+print "Providers:\n";
+my @providers = @{$aspa_parser->providers()};
+if (not @providers) {
+    print "N/A\n";
+} else {
+    for my $provider (@providers) {
+        print "  ".$provider->{'provider_asn'};
+        if (my $al = $provider->{'afi_limit'}) {
+            if ($al == 1) {
+                print " (IPv4 only)\n";
+            } elsif ($al == 2) {
+                print " (IPv6 only)\n";
+            } else {
+                print " (invalid AFI limit)\n";
+            }
+        } else {
+            print "\n";
+        }
+    }
+}
+
+1;

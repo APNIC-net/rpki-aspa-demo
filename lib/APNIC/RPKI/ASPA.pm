@@ -104,10 +104,9 @@ sub encode
     my $data = {};
 
     my $version = $self->version();
-    if (not defined $version) {
-        $version = 0;
+    if (defined $version and $version != 0) {
+        $data->{'version'} = $version;
     }
-    $data->{'version'} = $version;
 
     $data->{'customerASID'} = $self->customer_asn();
 
