@@ -113,6 +113,10 @@ use constant CRL_FILENAME     => 'crl.pem';
 use constant ID_CT_ASPA => '1.2.840.113549.1.9.16.1.49';
 use constant ID_CT_MFT  => '1.2.840.113549.1.9.16.1.26';
 
+use constant ID_SIA_REPO         => '1.3.6.1.5.5.7.48.5';
+use constant ID_SIA_MANIFEST     => '1.3.6.1.5.5.7.48.10';
+use constant ID_SIA_SIGNEDOBJECT => '1.3.6.1.5.5.7.48.11';
+
 our $DEBUG = 0;
 
 our $VERSION = '0.1';
@@ -217,31 +221,33 @@ sub initialise
         write_file("ca/ca/db/$serial_file", "01");
     }
 
+    my $path = $self->{'ca_path'};
+    my ($name) = ($path =~ /.*\/(.*)\/?/);
+
     my $openssl = $self->{'openssl'}->get_openssl_path();
     _system("$openssl genrsa -out ca/ca/private/ca.key 2048");
     my $key_data = read_file("ca/ca/private/ca.key");
     my $gski = $self->{'openssl'}->get_key_ski($key_data);
-    my $path = $self->{'ca_path'};
-    my ($name) = ($path =~ /.*\/(.*)\/?/);
+
     my $stg_repo = $stg_repo_dir.'/'.$name;
     mkdir $stg_repo or die $!;
     my $repo = $repo_dir.'/'.$name;
     mkdir $repo or die $!;
+
     my $aia = undef;
-    my $sia = "1.3.6.1.5.5.7.48.5;URI:rsync://$host_and_port/repo/$name/";
-    my $mft_sia = "1.3.6.1.5.5.7.48.10;URI:rsync://$host_and_port/repo/$name/$gski.mft";
+    my $sia = ID_SIA_REPO().";URI:rsync://$host_and_port/repo/$name/";
+    my $mft_sia = ID_SIA_MANIFEST().";URI:rsync://$host_and_port/repo/$name/$gski.mft";
+
     if (not $key_only) {
         my $extra = $self->_generate_sbgp_config(['0.0.0.0/0'], ['1-65536']);
-        $extra = 'subjectInfoAccess='.$sia.','.
-                                    $mft_sia."\n".
-                $extra;
-
+        $extra = "subjectInfoAccess=$sia,$mft_sia\n$extra";
         $self->_generate_config(root_ca_ext_extra => $extra);
 
         _system("$openssl req -new -config ca.cnf -extensions root_ca_ext ".
                 "-x509 -key ca/ca/private/ca.key -out ca/ca.crt -subj '/CN=$common_name'");
         _system("$openssl x509 -in ca/ca.crt -outform DER -out ca/ca.der.cer");
         _system("cp ca/ca.der.cer $repo_dir/$gski.cer");
+        
         my $ft = File::Temp->new();
         my $fn = $ft->filename();
         my @key_data = `$openssl x509 -in ca/ca.crt -noout -pubkey`;
@@ -257,17 +263,17 @@ EOF
     }
 
     my $own_config = {
-        name => $name,
-        host => $host,
-        port => $port,
-        host_and_port => $host_and_port,
-        stg_repo => $stg_repo,
-        repo => $repo,
-        self_signed => (not $key_only),
-        aia => $aia,
-        gski => $gski,
-        sia => $sia,
-        mft_sia => $mft_sia,
+        name            => $name,
+        host            => $host,
+        port            => $port,
+        host_and_port   => $host_and_port,
+        stg_repo        => $stg_repo,
+        repo            => $repo,
+        self_signed     => (not $key_only),
+        aia             => $aia,
+        gski            => $gski,
+        sia             => $sia,
+        mft_sia         => $mft_sia,
         manifest_number => 0,
     };
     YAML::DumpFile('config.yml', $own_config);
@@ -290,7 +296,8 @@ sub get_ca_request
     $self->_chdir_ca();
 
     my $openssl = $self->{'openssl'}->get_openssl_path();
-    _system("$openssl req -new -key ca/ca/private/ca.key -out ca/ca.req -subj '/CN=$common_name'");
+    _system("$openssl req -new -key ca/ca/private/ca.key ".
+            "-out ca/ca.req -subj '/CN=$common_name'");
 
     my $data = read_file('ca/ca.req');
     return $data;
@@ -401,13 +408,7 @@ sub sign_ca_request
 
     my $own_config = YAML::LoadFile('config.yml');
     my $aia = $own_config->{'aia'};
-    if (not $aia) {
-        die "No AIA set for this CA";
-    }
     my $gski = $own_config->{'gski'};
-    if (not $gski) {
-        die "No GSKI set for this CA";
-    }
     my $host_and_port = $own_config->{'host_and_port'};
 
     my $path = $self->{'ca_path'};
@@ -465,7 +466,7 @@ sub install_ca_certificate
     my ($name) = ($path =~ /.*\/(.*)\/?/);
 
     $own_config->{'mft_sia'} =
-        "1.3.6.1.5.5.7.48.10;URI:rsync://$host_and_port/repo/$name/$gski.mft";
+        ID_SIA_MANIFEST().";URI:rsync://$host_and_port/repo/$name/$gski.mft";
 
     YAML::DumpFile('config.yml', $own_config);
 
@@ -495,13 +496,7 @@ sub issue_new_ee_certificate
 
     my $own_config = YAML::LoadFile('config.yml');
     my $aia = $own_config->{'aia'};
-    if (not $aia) {
-        die "No AIA set for this CA";
-    }
     my $gski = $own_config->{'gski'};
-    if (not $gski) {
-        die "No GSKI set for this CA";
-    }
     my $host_and_port = $own_config->{'host_and_port'};
 
     my $extra = $self->_generate_sbgp_config($ip_resources, $as_resources);
@@ -548,13 +543,7 @@ sub issue_crl
 
     my $own_config = YAML::LoadFile('config.yml');
     my $aia = $own_config->{'aia'};
-    if (not $aia) {
-        die "No AIA set for this CA";
-    }
     my $gski = $own_config->{'gski'};
-    if (not $gski) {
-        die "No GSKI set for this CA";
-    }
     my $stg_repo = $own_config->{'stg_repo'};
 
     system("cp crl.der.crl $stg_repo/$gski.crl");
@@ -586,7 +575,7 @@ sub issue_aspa
 {
     my ($self, $aspa, $url) = @_;
 
-    my $sia = "1.3.6.1.5.5.7.48.11;URI:$url";
+    my $sia = ID_SIA_SIGNEDOBJECT().";URI:$url";
     my $customer_asn = $aspa->customer_asn();
     $self->issue_new_ee_certificate([], [$customer_asn], $sia);
 
@@ -603,15 +592,9 @@ sub issue_manifest
     my $sia = $own_config->{'mft_sia'};
     $sia =~ s/\.10;/.11;/;
     $self->issue_new_ee_certificate(undef, undef, $sia);
-
     my $aia = $own_config->{'aia'};
-    if (not $aia) {
-        die "No AIA set for this CA";
-    }
     my $gski = $own_config->{'gski'};
-    if (not $gski) {
-        die "No GSKI set for this CA";
-    }
+
     $own_config->{'manifest_number'}++;
     my $manifest_number = $own_config->{'manifest_number'};
     my $this_update = DateTime->now(time_zone => 'UTC');
@@ -662,13 +645,7 @@ sub publish
 
     my $own_config = YAML::LoadFile('config.yml');
     my $aia = $own_config->{'aia'};
-    if (not $aia) {
-        die "No AIA set for this CA";
-    }
     my $gski = $own_config->{'gski'};
-    if (not $gski) {
-        die "No GSKI set for this CA";
-    }
     my $stg_repo = $own_config->{'stg_repo'};
     my $repo = $own_config->{'repo'};
 
@@ -680,15 +657,6 @@ sub publish
     if ($res != 0) {
         die "Unable to copy staging state to repository";
     }
-
-    return 1;
-}
-
-sub cycle
-{
-    my ($self) = @_;
-
-    $self->publish();
 
     return 1;
 }
