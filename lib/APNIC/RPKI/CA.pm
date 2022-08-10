@@ -33,14 +33,14 @@ dir                     = .
 default_bits            = 2048
 encrypt_key             = yes
 default_md              = sha256
-utf8                    = yes
-string_mask             = utf8only
+utf8                    = no
+string_mask             = pkix
 prompt                  = no
 distinguished_name      = ca_dn
 req_extensions          = ca_reqext
 
 [ ca_dn ]
-commonName              = "Simple Root CA"
+commonName              = "root"
 
 [ ca_reqext ]
 keyUsage                = critical,keyCertSign,cRLSign
@@ -232,9 +232,7 @@ sub initialise
     my $mft_sia = "1.3.6.1.5.5.7.48.10;URI:rsync://$host_and_port/repo/$name/$gski.mft";
     if (not $key_only) {
         my $extra = $self->_generate_sbgp_config(['0.0.0.0/0'], ['1-65536']);
-        $extra = 'crlDistributionPoints=URI:'.
-                "rsync://$host_and_port/repo/$name/$gski.crl\n".
-                'subjectInfoAccess='.$sia.','.
+        $extra = 'subjectInfoAccess='.$sia.','.
                                     $mft_sia."\n".
                 $extra;
 
@@ -244,7 +242,20 @@ sub initialise
                 "-x509 -key ca/ca/private/ca.key -out ca/ca.crt -subj '/CN=$common_name'");
         _system("$openssl x509 -in ca/ca.crt -outform DER -out ca/ca.der.cer");
         _system("cp ca/ca.der.cer $repo_dir/$gski.cer");
+        my $ft = File::Temp->new();
+        my $fn = $ft->filename();
+        my @key_data = `$openssl x509 -in ca/ca.crt -noout -pubkey`;
+        shift @key_data;
+        pop @key_data;
+
         $aia = "rsync://$host_and_port/repo/$gski.cer";
+        write_file("$repo_dir/$gski.tal", <<EOF);
+$aia
+
+@key_data
+EOF
+
+        system("tree $repo_dir");
     }
 
     my $own_config = {
@@ -462,7 +473,7 @@ sub revoke_current_ee_certificate
 
 sub issue_new_ee_certificate
 {
-    my ($self, $ip_resources, $as_resources) = @_;
+    my ($self, $ip_resources, $as_resources, @sias) = @_;
 
     $self->_chdir_ca();
 
@@ -487,8 +498,7 @@ sub issue_new_ee_certificate
              "$aia\n".
              'crlDistributionPoints=URI:'.
              "rsync://$host_and_port/repo/$name/$gski.crl\n".
-             'subjectInfoAccess='.$own_config->{'sia'}.','.
-                                  $own_config->{'mft_sia'}."\n".
+             'subjectInfoAccess='.(join ',', @sias)."\n".
              $extra;
 
     $self->_generate_config(signing_ca_ext_extra => $extra);
@@ -497,6 +507,7 @@ sub issue_new_ee_certificate
     _system("$openssl genrsa ".
             "-out ".EE_KEY_FILENAME()." 2048");
     _system("$openssl req -new ".
+            "-config ca.cnf -extensions root_ca_ext ".
             "-key ".EE_KEY_FILENAME()." ".
             "-out ".EE_CSR_FILENAME()." ".
             "-subj '/CN=EE'");
@@ -617,12 +628,14 @@ sub publish
 {
     my ($self) = @_;
 
-    $self->issue_new_ee_certificate();
+    my $own_config = YAML::LoadFile('config.yml');
+
     $self->issue_crl();
-    $self->issue_new_ee_certificate();
+    my $sia = $own_config->{'mft_sia'};
+    $sia =~ s/\.10;/.11;/;
+    $self->issue_new_ee_certificate(undef, undef, $sia);
     $self->issue_manifest();
 
-    my $own_config = YAML::LoadFile('config.yml');
     my $aia = $own_config->{'aia'};
     if (not $aia) {
         die "No AIA set for this CA";
@@ -650,7 +663,6 @@ sub cycle
 {
     my ($self) = @_;
 
-    $self->issue_new_ee_certificate();
     $self->publish();
 
     return 1;
