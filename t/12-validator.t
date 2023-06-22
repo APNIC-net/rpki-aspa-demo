@@ -10,7 +10,7 @@ use APNIC::RPKI::CA;
 use APNIC::RPKI::ASPA;
 use APNIC::RPKI::Validator;
 
-use Test::More tests => 14;
+use Test::More tests => 12;
 
 sub debug
 {
@@ -73,7 +73,7 @@ EOF
     my $ca = APNIC::RPKI::CA->new(ca_path => $ca_path);
     eval {
         $ca->initialise('ta', 0, $stg_repo_dir, $repo_dir,
-                        'localhost', $port);
+                        'localhost', $port, undef, [1000]);
         $ca->publish();
     };
     my $error = $@;
@@ -87,9 +87,7 @@ EOF
         my $aspa_obj = APNIC::RPKI::ASPA->new();
         $aspa_obj->version(0);
         $aspa_obj->customer_asn(100000);
-        $aspa_obj->providers([{
-            provider_asn => 1025
-        }]);
+        $aspa_obj->providers([1025]);
         $aspa_data = $ca->issue_aspa($aspa_obj,
             "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);
@@ -119,9 +117,7 @@ EOF
         my $aspa_obj = APNIC::RPKI::ASPA->new();
         $aspa_obj->version(1);
         $aspa_obj->customer_asn(1000);
-        $aspa_obj->providers([{
-            provider_asn => 1025
-        }]);
+        $aspa_obj->providers([1025]);
         $aspa_data = $ca->issue_aspa($aspa_obj,
             "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);
@@ -146,14 +142,7 @@ EOF
         my $aspa_obj = APNIC::RPKI::ASPA->new();
         $aspa_obj->version(0);
         $aspa_obj->customer_asn(1000);
-        $aspa_obj->providers([
-            {
-                provider_asn => 1025
-            },
-            {
-                provider_asn => 1024
-            },
-        ]);
+        $aspa_obj->providers([1025, 1024]);
         $aspa_data = $ca->issue_aspa($aspa_obj,
             "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);
@@ -179,14 +168,7 @@ EOF
         my $aspa_obj = APNIC::RPKI::ASPA->new();
         $aspa_obj->version(0);
         $aspa_obj->customer_asn(1000);
-        $aspa_obj->providers([
-            {
-                provider_asn => 1025
-            },
-            {
-                provider_asn => 1025
-            },
-        ]);
+        $aspa_obj->providers([1025, 1025]);
         $aspa_data = $ca->issue_aspa($aspa_obj,
             "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);
@@ -212,43 +194,7 @@ EOF
         my $aspa_obj = APNIC::RPKI::ASPA->new();
         $aspa_obj->version(0);
         $aspa_obj->customer_asn(1000);
-        $aspa_obj->providers([
-            {
-                provider_asn => 1025,
-                afi_limit => 3,
-            },
-            {
-                provider_asn => 1025
-            },
-        ]);
-        $aspa_data = $ca->issue_aspa($aspa_obj,
-            "rsync://localhost:$port/ta/an-object.asa");
-        $ca->publish_file("an-object.asa", $aspa_data);
-        $ca->publish();
-    };
-    $error = $@;
-    if ($error) {
-        diag $error;
-    }
-    ok((not $error), "Published invalid ASPA under TA ".
-                     "(invalid AFI)");
-
-    $res = eval {
-        $validator->validate_aspa(
-            $aspa_data, [$ca_cert],
-        );
-    };
-    $error = $@;
-    like($error, qr/ASPA provider AFI limit is invalid/,
-        "ASPA with invalid AFI is not valid");
-
-    eval {
-        my $aspa_obj = APNIC::RPKI::ASPA->new();
-        $aspa_obj->version(0);
-        $aspa_obj->customer_asn(1000);
-        $aspa_obj->providers([{
-            provider_asn => 1025
-        }]);
+        $aspa_obj->providers([1025]);
         $aspa_data = $ca->issue_aspa($aspa_obj,
             "rsync://localhost:$port/ta/an-object.asa");
         $ca->publish_file("an-object.asa", $aspa_data);

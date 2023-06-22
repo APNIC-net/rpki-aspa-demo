@@ -81,9 +81,7 @@ EOF
         my $aspa_obj = APNIC::RPKI::ASPA->new();
         $aspa_obj->version(0);
         $aspa_obj->customer_asn(1024);
-        $aspa_obj->providers([{
-            provider_asn => 1025
-        }]);
+        $aspa_obj->providers([1025]);
         my $aspa_data =
             $ca->issue_aspa($aspa_obj,
                 "rsync://localhost:$port/ta/an-object.asa");

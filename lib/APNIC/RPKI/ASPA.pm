@@ -15,17 +15,12 @@ use constant ASPA_ASN1 => q<
 
     AddressFamilyIdentifier ::= OCTET STRING 
 
-    ProviderAS ::= SEQUENCE {
-	providerASID  ASID,
-	afiLimit      AddressFamilyIdentifier OPTIONAL
-    }
-
-    ProviderASSet ::= SEQUENCE OF ProviderAS
+    ProviderASSet ::= SEQUENCE OF ASID
 
     ASPAVersion ::= INTEGER
 
     ASProviderAttestation ::= SEQUENCE {
-	version [0]   ASPAVersion OPTIONAL,
+	version [0]   INTEGER OPTIONAL,
 	customerASID  ASID,
 	providers     ProviderASSet
     }
@@ -77,21 +72,7 @@ sub decode
     $self->version($version);
     $self->customer_asn($data->{'customerASID'});
 
-    my @providers;
-    for my $provider (@{$data->{'providers'}}) {
-        my $asn = $provider->{'providerASID'};
-        my $afi_limit;
-        if (my $al = $provider->{'afiLimit'}) {
-            my @chars = split //, $al;
-            $afi_limit = ord $chars[1];
-        }
-        push @providers, {
-            provider_asn => $asn,
-            (defined $afi_limit)
-                ? (afi_limit => $afi_limit)
-                : ()
-        };
-    }
+    my @providers = @{$data->{'providers'}};
     $self->providers(\@providers);
 
     return 1;
@@ -109,20 +90,7 @@ sub encode
     }
 
     $data->{'customerASID'} = $self->customer_asn();
-
-    my @providers;
-    for my $provider (@{$self->providers()}) {
-        my $asn = $provider->{'provider_asn'};
-        my $al;
-        if (my $afi_limit = $provider->{'afi_limit'}) {
-            $al = join '', (chr(0), chr($afi_limit));
-        }
-        push @providers, {
-            providerASID => $asn,
-            ($al ? (afiLimit => $al) : ())
-        };
-    }
-    $data->{'providers'} = \@providers;
+    $data->{'providers'} = $self->providers();
 
     my $parser = $self->{'parser'};
     my $aspa = $parser->encode($data);
@@ -143,25 +111,16 @@ sub equals
     if ($self->customer_asn() != $other->customer_asn()) {
         return;
     }
-    my @p1 =
-        sort { $a->{'provider_asn'} <=> $b->{'provider_asn'} }
-            @{$self->{'providers'}};
-    my @p2 =
-        sort { $a->{'provider_asn'} <=> $b->{'provider_asn'} }
-            @{$other->{'providers'}};
+    my @p1 = sort { $a <=> $b } @{$self->{'providers'}};
+    my @p2 = sort { $a <=> $b } @{$other->{'providers'}};
     if (@p1 != @p2) {
         return;
     }
     for (my $i = 0; $i < @p1; $i++) {
         my $pp1 = $p1[$i];
         my $pp2 = $p2[$i];
-        if ($pp1->{'provider_asn'} != $pp2->{'provider_asn'}) {
+        if ($pp1 != $pp2) {
             return;
-        }
-        if ($pp1->{'afi_limit'}) {
-            if ($pp1->{'afi_limit'} != $pp2->{'afi_limit'}) {
-                return;
-            }
         }
     }
     return 1;

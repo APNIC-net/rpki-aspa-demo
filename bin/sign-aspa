@@ -18,7 +18,7 @@ sub usage
     print <<EOF;
 Usage:
 $0 --ca-name {ca-name} --customer-asn {customer-asn}
-    --provider-asn {provider-asn}[:IPv4][:IPv6]
+    --provider-asn {provider-asn}
     [--provider-asn ...]
     --out {path}
 
@@ -62,12 +62,6 @@ my @providers;
 for my $provider_asn (@{$provider_asn_ref}) {
     if ($provider_asn =~ /^\d+$/) {
         push @providers, { provider_asn => $provider_asn };
-    } elsif ($provider_asn =~ /^(\d+):IPv4$/) {
-        push @providers, { provider_asn => $provider_asn,
-                           afi_limit => 'ipv4' };
-    } elsif ($provider_asn =~ /^(\d+):IPv6$/) {
-        push @providers, { provider_asn => $provider_asn,
-                           afi_limit => 'ipv6' };
     } else {
         print "Invalid provider ASN specification: $provider_asn";
         usage();

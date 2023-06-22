@@ -59,18 +59,7 @@ if (not @providers) {
     print "N/A\n";
 } else {
     for my $provider (@providers) {
-        print "  ".$provider->{'provider_asn'};
-        if (my $al = $provider->{'afi_limit'}) {
-            if ($al == 1) {
-                print " (IPv4 only)\n";
-            } elsif ($al == 2) {
-                print " (IPv6 only)\n";
-            } else {
-                print " (invalid AFI limit)\n";
-            }
-        } else {
-            print "\n";
-        }
+        print "  $provider\n";
     }
 }
 

@@ -2,7 +2,7 @@
 
 A proof-of-concept for constructing and validating RPKI Autonomous
 System Provider Authorization (ASPA) objects.
-See [https://www.ietf.org/archive/id/draft-ietf-sidrops-aspa-profile-09.txt](https://www.ietf.org/archive/id/draft-ietf-sidrops-aspa-profile-09.txt).
+See [https://www.ietf.org/archive/id/draft-ietf-sidrops-aspa-profile-15.txt](https://www.ietf.org/archive/id/draft-ietf-sidrops-aspa-profile-15.txt).
 
 ### Build
 

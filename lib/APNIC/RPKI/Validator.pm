@@ -258,23 +258,19 @@ sub validate_aspa
     my %seen;
     my $last;
     for my $provider (@providers) {
-        my $asn = $provider->{'provider_asn'};
-        if ($seen{$asn}) {
+        if ($seen{$provider}) {
             die "ASPA contains duplicate provider ASN";
         }
-        $seen{$asn} = 1;
+        $seen{$provider} = 1;
         if (defined $last) {
-            if ($last > $asn) {
+            if ($last > $provider) {
                 die "ASPA providers are not in order";
             }
         }
-        if (exists $provider->{'afi_limit'}) {
-            my $afi_limit = $provider->{'afi_limit'};
-            if (not ($afi_limit == 1 or $afi_limit == 2)) {
-                die "ASPA provider AFI limit is invalid";
-            }
+        if ($provider == $customer_asn) {
+            die "ASPA customer ASN is included as provider ASN";
         }
-        $last = $asn;
+        $last = $provider;
     }
 
     return 1;
