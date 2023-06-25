@@ -84,10 +84,8 @@ sub encode
 
     my $data = {};
 
-    my $version = $self->version();
-    if (defined $version and $version != 0) {
-        $data->{'version'} = $version;
-    }
+    my $version = $self->version() || 0;
+    $data->{'version'} = $version;
 
     $data->{'customerASID'} = $self->customer_asn();
     $data->{'providers'} = $self->providers();

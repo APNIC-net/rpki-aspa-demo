@@ -245,8 +245,8 @@ sub validate_aspa
     $aspa->decode($aspa_data);
 
     my $version = $aspa->version();
-    if ($version != 0) {
-        die "ASPA version is invalid: expected '0', got '$version'";
+    if ($version != 1) {
+        die "ASPA version is invalid: expected '1', got '$version'";
     }
 
     my $customer_asn = $aspa->customer_asn();

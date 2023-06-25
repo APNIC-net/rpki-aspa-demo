@@ -85,7 +85,7 @@ EOF
     my $aspa_data;
     eval {
         my $aspa_obj = APNIC::RPKI::ASPA->new();
-        $aspa_obj->version(0);
+        $aspa_obj->version(1);
         $aspa_obj->customer_asn(100000);
         $aspa_obj->providers([1025]);
         $aspa_data = $ca->issue_aspa($aspa_obj,
@@ -115,7 +115,7 @@ EOF
 
     eval {
         my $aspa_obj = APNIC::RPKI::ASPA->new();
-        $aspa_obj->version(1);
+        $aspa_obj->version(2);
         $aspa_obj->customer_asn(1000);
         $aspa_obj->providers([1025]);
         $aspa_data = $ca->issue_aspa($aspa_obj,
@@ -140,7 +140,7 @@ EOF
 
     eval {
         my $aspa_obj = APNIC::RPKI::ASPA->new();
-        $aspa_obj->version(0);
+        $aspa_obj->version(1);
         $aspa_obj->customer_asn(1000);
         $aspa_obj->providers([1025, 1024]);
         $aspa_data = $ca->issue_aspa($aspa_obj,
@@ -166,7 +166,7 @@ EOF
 
     eval {
         my $aspa_obj = APNIC::RPKI::ASPA->new();
-        $aspa_obj->version(0);
+        $aspa_obj->version(1);
         $aspa_obj->customer_asn(1000);
         $aspa_obj->providers([1025, 1025]);
         $aspa_data = $ca->issue_aspa($aspa_obj,
@@ -192,7 +192,7 @@ EOF
 
     eval {
         my $aspa_obj = APNIC::RPKI::ASPA->new();
-        $aspa_obj->version(0);
+        $aspa_obj->version(1);
         $aspa_obj->customer_asn(1000);
         $aspa_obj->providers([1025]);
         $aspa_data = $ca->issue_aspa($aspa_obj,

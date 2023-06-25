@@ -56,7 +56,7 @@ my $path = $cwd."/data/cas/$ca_name";
 my $ca = APNIC::RPKI::CA->new(ca_path => $path);
 
 my $aspa = APNIC::RPKI::ASPA->new();
-$aspa->version(0);
+$aspa->version(1);
 $aspa->customer_asn($customer_asn);
 my @providers;
 for my $provider_asn (@{$provider_asn_ref}) {
