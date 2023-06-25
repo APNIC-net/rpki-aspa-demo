@@ -13,8 +13,6 @@ use constant ID_CT_ASPA => ID_CT . '.49';
 use constant ASPA_ASN1 => q<
     ASID ::= INTEGER
 
-    AddressFamilyIdentifier ::= OCTET STRING 
-
     ProviderASSet ::= SEQUENCE OF ASID
 
     ASPAVersion ::= INTEGER
