@@ -61,7 +61,7 @@ $aspa->customer_asn($customer_asn);
 my @providers;
 for my $provider_asn (@{$provider_asn_ref}) {
     if ($provider_asn =~ /^\d+$/) {
-        push @providers, { provider_asn => $provider_asn };
+        push @providers, $provider_asn;
     } else {
         print "Invalid provider ASN specification: $provider_asn";
         usage();
