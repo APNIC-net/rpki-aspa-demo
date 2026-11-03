@@ -1,8 +1,9 @@
-FROM ubuntu:20.04
+FROM ubuntu:26.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -y
 RUN apt-get install -y \
+    build-essential \
     libhttp-daemon-perl \
     liblist-moreutils-perl \
     libwww-perl \
@@ -23,7 +24,7 @@ RUN apt-get install -y \
     vim \
     less
 COPY cms.diff .
-RUN wget https://ftp.openssl.org/source/openssl-1.0.2p.tar.gz \
+RUN wget https://github.com/openssl/openssl/releases/download/OpenSSL_1_0_2p/openssl-1.0.2p.tar.gz \
     && tar xf openssl-1.0.2p.tar.gz \
     && cd openssl-1.0.2p \
     && patch -p1 < /cms.diff \
