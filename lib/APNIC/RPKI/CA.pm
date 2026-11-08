@@ -52,6 +52,7 @@ policyIdentifier        = 1.3.6.1.5.5.7.14.2
 
 [ ca ]
 default_ca              = root_ca
+string_mask             = MASK:0x0002
 
 [ root_ca ]
 certificate             = {dir}/ca/{ca}.crt
@@ -72,6 +73,7 @@ copy_extensions         = none
 x509_extensions         = signing_ca_ext
 default_crl_days        = 365
 crl_extensions          = crl_ext
+string_mask             = MASK:0x0002
 
 [ match_pol ]
 commonName              = supplied
@@ -189,6 +191,23 @@ sub _generate_config
     return 1;
 }
 
+sub _verify_no_utf8string
+{
+    my ($self, $inform, $path) = @_;
+
+    my $openssl = $self->{'openssl'}->get_openssl_path();
+    my @output = `$openssl asn1parse -inform $inform -in $path`;
+    if (not @output) {
+        die "Unable to get asn1parse output for '$path'";
+    }
+    my @utf8string = grep { /UTF8STRING/ } @output;
+    if (@utf8string) {
+        die "'$path' contains UTF8STRING";
+    }
+
+    return 1;
+}
+
 sub initialise
 {
     my ($self, $common_name, $key_only, $stg_repo_dir, $repo_dir,
@@ -245,6 +264,7 @@ sub initialise
 
         _system("$openssl req -new -config ca.cnf -extensions root_ca_ext ".
                 "-x509 -key ca/ca/private/ca.key -out ca/ca.crt -subj '/CN=$common_name'");
+        $self->_verify_no_utf8string("PEM", "ca/ca.crt");
         _system("$openssl x509 -in ca/ca.crt -outform DER -out ca/ca.der.cer");
         _system("cp ca/ca.der.cer $repo_dir/$gski.cer");
         
@@ -304,8 +324,12 @@ sub get_ca_request
     $self->_chdir_ca();
 
     my $openssl = $self->{'openssl'}->get_openssl_path();
-    _system("$openssl req -new -key ca/ca/private/ca.key ".
+    _system("$openssl req -new ".
+            "-config ca.cnf ".
+            "-extensions signing_ca_ext ".
+            "-key ca/ca/private/ca.key ".
             "-out ca/ca.req -subj '/CN=$common_name'");
+    $self->_verify_no_utf8string("PEM", "ca/ca.req");
 
     my $data = read_file('ca/ca.req');
     return $data;
@@ -449,6 +473,7 @@ sub sign_ca_request
 
     _system("$openssl x509 -in $fn_output -inform PEM -outform DER ".
             "-out $stg_repo/$cert_gski.cer");
+    $self->_verify_no_utf8string("DER", "$stg_repo/$cert_gski.cer");
     $self->publish();
 
     return ($data, "rsync://$host_and_port/repo/$name/$cert_gski.cer");
@@ -532,10 +557,15 @@ sub issue_new_ee_certificate
             "-key ".EE_KEY_FILENAME()." ".
             "-out ".EE_CSR_FILENAME()." ".
             "-subj '/CN=EE'");
+    $self->_verify_no_utf8string("PEM", EE_CSR_FILENAME());
     _system("$openssl ca -batch -config ca.cnf ".
             "-out ".EE_CERT_FILENAME()." ".
             "-extensions signing_ca_ext ".
-            "-in ".EE_CSR_FILENAME()." -days 365");
+            "-in ".EE_CSR_FILENAME()." -days 365 ".
+            "-subj '/CN=EE'");
+    _system("$openssl x509 -in ".EE_CERT_FILENAME()." -out ecf");
+    _system("mv ecf ".EE_CERT_FILENAME());
+    $self->_verify_no_utf8string("PEM", EE_CERT_FILENAME());
 
     my $data = read_file(EE_CERT_FILENAME());
 
@@ -553,6 +583,7 @@ sub issue_crl
             "-out ".CRL_FILENAME());
     _system("$openssl crl -in ".CRL_FILENAME()." -outform DER -out ".
             "crl.der.crl");
+    $self->_verify_no_utf8string("DER", "crl.der.crl");
 
     my $own_config = YAML::LoadFile('config.yml');
     my $aia = $own_config->{'aia'};
