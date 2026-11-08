@@ -77,12 +77,13 @@ my $ca_config = $ca->get_config();
 my $host_and_port = $ca_config->{'host_and_port'};
 my $name = $ca_config->{'name'};
 my $aspa_data = $ca->issue_aspa($aspa,
-    "rsync://$host_and_port/$name/an-object.asa");
-$ca->publish_file("an-object.asa", $aspa_data);
+    "rsync://$host_and_port/repo/$name/{gski}.asa");
+my $gski = $ca->get_ee_gski();
+$ca->publish_file("$gski.asa", $aspa_data);
 $ca->publish();
 
 my $repo = $ca_config->{'repo'};
-my $res = system("cp $repo/an-object.asa $out");
+my $res = system("cp $repo/$gski.asa $out");
 if ($res != 0) {
     die "Unable to copy ASPA object to output location";
 }

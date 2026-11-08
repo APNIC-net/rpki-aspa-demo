@@ -5,6 +5,7 @@ use strict;
 
 use File::Slurp qw(read_file);
 use File::Temp;
+use MIME::Base64 qw(encode_base64url);
 use Net::CIDR::Set;
 use Set::IntSpan;
 
@@ -79,7 +80,7 @@ sub get_key_ski
     return $ski;
 }
 
-sub get_ski
+sub get_cert_ski
 {
     my ($self, $cert) = @_;
 
@@ -94,6 +95,30 @@ sub get_ski
     $ski =~ s/://g;
     $ski = uc $ski;
     return $ski;
+}
+
+sub _mod_gutmannize
+{
+    my $data = shift
+        or return;
+
+    $data or return '';
+
+    my $base64url_data = encode_base64url($data);
+    my $output         = $base64url_data;
+    chomp $output;
+    $output =~ s/=$//;
+
+    return $output;
+}
+
+sub ski_to_gski
+{
+    my ($self, $ski) = @_;
+
+    my $bin_ski = pack('H*', $ski);
+    my $gski = _mod_gutmannize($bin_ski);
+    return $gski;
 }
 
 sub get_sias

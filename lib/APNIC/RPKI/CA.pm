@@ -246,7 +246,8 @@ sub initialise
     my $openssl = $self->{'openssl'}->get_openssl_path();
     _system("$openssl genrsa -out ca/ca/private/ca.key 2048 >/dev/null 2>&1");
     my $key_data = read_file("ca/ca/private/ca.key");
-    my $gski = $self->{'openssl'}->get_key_ski($key_data);
+    my $ski = $self->{'openssl'}->get_key_ski($key_data);
+    my $gski = $self->{'openssl'}->ski_to_gski($ski);
 
     my $stg_repo = $stg_repo_dir.'/'.$name;
     mkdir $stg_repo or die $!;
@@ -399,21 +400,6 @@ sub _generate_sbgp_config
     return $result;
 }
 
-sub mod_gutmannize
-{
-    my $data = shift
-        or return;
-
-    $data or return '';
-
-    my $base64url_data = encode_base64url($data);
-    my $output         = $base64url_data;
-    chomp $output;
-    $output =~ s/=$//;
-
-    return $output;
-}
-
 sub sign_ca_request
 {
     my ($self, $request, $ip_resources, $as_resources) = @_;
@@ -467,9 +453,8 @@ sub sign_ca_request
             "-in $fn_request -days 365");
 
     my $data = read_file($fn_output);
-    my $ski = $self->{'openssl'}->get_ski($data);
-    my $bin_ski = pack('H*', $ski);
-    my $cert_gski = mod_gutmannize($bin_ski);
+    my $ski = $self->{'openssl'}->get_cert_ski($data);
+    my $cert_gski = $self->{'openssl'}->ski_to_gski($ski);
 
     _system("$openssl x509 -in $fn_output -inform PEM -outform DER ".
             "-out $stg_repo/$cert_gski.cer");
@@ -537,6 +522,14 @@ sub issue_new_ee_certificate
     my $gski = $own_config->{'gski'};
     my $host_and_port = $own_config->{'host_and_port'};
 
+    my $openssl = $self->{'openssl'}->get_openssl_path();
+    _system("$openssl genrsa ".
+            "-out ".EE_KEY_FILENAME()." 2048");
+    my $ee_gski = $self->get_ee_gski();
+    for (@sias) {
+        s/{gski}/$ee_gski/g;
+    }
+
     my $extra = $self->_generate_sbgp_config($ip_resources, $as_resources);
     my $path = $self->{'ca_path'};
     my ($name) = ($path =~ /.*\/(.*)\/?/);
@@ -549,9 +542,6 @@ sub issue_new_ee_certificate
 
     $self->_generate_config(signing_ca_ext_extra => $extra);
 
-    my $openssl = $self->{'openssl'}->get_openssl_path();
-    _system("$openssl genrsa ".
-            "-out ".EE_KEY_FILENAME()." 2048");
     _system("$openssl req -new ".
             "-config ca.cnf -extensions root_ca_ext ".
             "-key ".EE_KEY_FILENAME()." ".
@@ -570,6 +560,19 @@ sub issue_new_ee_certificate
     my $data = read_file(EE_CERT_FILENAME());
 
     return $data;
+}
+
+sub get_ee_gski
+{
+    my ($self) = @_;
+
+    $self->_chdir_ca();
+
+    my $ee_key_data = read_file(EE_KEY_FILENAME());
+    my $ee_ski = $self->{'openssl'}->get_key_ski($ee_key_data);
+    my $ee_gski = $self->{'openssl'}->ski_to_gski($ee_ski);
+
+    return $ee_gski;
 }
 
 sub issue_crl

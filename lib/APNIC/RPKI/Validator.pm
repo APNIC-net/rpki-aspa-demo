@@ -172,10 +172,10 @@ sub validate_aspa
 
     if (@extra_certs) {
         my %ta_skis =
-            map { $self->{'openssl'}->get_ski($_) => 1 }
+            map { $self->{'openssl'}->get_cert_ski($_) => 1 }
                 @{$ta};
         my %cert_skis =
-            map { $self->{'openssl'}->get_ski($_) => 1 }
+            map { $self->{'openssl'}->get_cert_ski($_) => 1 }
                 @extra_certs;
         my $has_ta = 0;
         for my $ta_ski (keys %ta_skis) {
